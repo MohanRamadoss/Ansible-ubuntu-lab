@@ -1,0 +1,63 @@
+Git clone 
+
+cd ansible-control/
+docker build -t ansible-control .
+
+export key_content=`docker run --rm ansible-control bash -c "cat /root/.ssh/id_rsa.pub"`
+# Verification
+echo $key_content
+cd ansible-node
+
+docker build -t ansible-node --build-arg key_content .
+docker run --rm ansible-node cat /root/.ssh/authorized_keys
+
+docker network create --driver bridge --subnet=10.0.10.0/24 ansible-net
+
+# Start the containers
+
+docker run -d --name host1 --net ansible-net --ip 10.0.10.11 --hostname host1 ansible-node
+docker run -d --name host2 --net ansible-net --ip 10.0.10.12 --hostname host2 ansible-node
+docker run -itd --name ansible-control \
+--net ansible-net --ip 10.0.10.2 --hostname ansible-control ansible-control /bin/bash
+
+#check the connectivity from ansible control node 
+---------------------
+docker exec -it ansible-control  /bin/bash
+
+ssh host1
+ssh host2
+--------------------
+
+#test the workstation
+
+#login ansible control node
+docker exec -it ansible-control  /bin/bash
+vi /etc/ansible/hosts
+
+<
+host1
+host2
+>
+
+#check inventory
+
+ansible-inventory --list
+
+#create nginx playbook nginx.yml
+
+- hosts: all
+  tasks:
+    - name: Install nginx
+      apt:
+       name: nginx
+       state: present
+    - name: nginx service is running
+      service:
+       state: started
+       name: nginx
+
+#run
+
+ansible-playbook nginx.yml
+
+
